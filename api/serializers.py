@@ -55,3 +55,15 @@ class UserLoginSerializer(serializers.Serializer):
             return data
         
         raise serializers.ValidationError("Invalid email or password.")
+    
+
+class AnonymizedPatientRecordSerializer(serializers.ModelSerializer):
+    anonymized_id = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PatientRecord
+        fields = ['anonymized_id', 'age', 'diagnosis', 'gender', 'created_at']
+
+    def get_anonymized_id(self, obj):
+        import hashlib
+        return hashlib.sha256(obj.patient_id.encode()).hexdigest()

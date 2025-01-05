@@ -8,12 +8,12 @@ class Hospital(models.Model):
     api_endpoint=models.URLField()
 
 class PatientRecord(models.Model):
-    hospital =models.ForeignKey(Hospital,on_delete=models.CASCADE)
-    patient_id=models.CharField(max_length=255)
-    name=models.CharField(max_length=255)
-    age=models.IntegerField()
-    diagnosis=models.TextField()
-    created_at=models.DateTimeField(auto_now_add=True)
+    patient_id = models.CharField(max_length=255, unique=True)
+    name = models.CharField(max_length=255)
+    age = models.IntegerField()
+    diagnosis = models.TextField()
+    gender = models.CharField(max_length=10, choices=[("male", "Male"), ("female", "Female")])
+    created_at = models.DateTimeField(auto_now_add=True)
 
 
     

@@ -11,6 +11,8 @@ from rest_framework.permissions import AllowAny,IsAuthenticated
 from rest_framework_simplejwt.views import TokenRefreshView
 from .serializers import UserSignupSerializer, UserLoginSerializer
 from django.contrib.auth import get_user_model
+from django.db.models import Q
+from django.db.models import Count, Avg
 from rest_framework_simplejwt.tokens import RefreshToken
 import requests
 
@@ -79,3 +81,68 @@ class MockHospitalEndpoint(APIView):
             ]
         }
         return Response(mock_data, status=status.HTTP_200_OK)
+
+class DynamicFilterView(APIView):
+    def get(self, request, *args, **kwargs):
+        filters = request.query_params  # All query parameters
+        queryset = PatientRecord.objects.all()
+
+        # Build the dynamic query
+        dynamic_query = Q()
+        for field, value in filters.items():
+            # Add filtering logic based on field and value
+            if "__" in field:  # Handle special operators like __gte, __lte
+                dynamic_query &= Q(**{field: value})
+            else:  # Default to exact match
+                dynamic_query &= Q(**{f"{field}": value})
+
+        # Apply the query to the queryset
+        filtered_records = queryset.filter(dynamic_query)
+
+        # Serialize and return results
+        from .serializers import AnonymizedPatientRecordSerializer
+        serializer = AnonymizedPatientRecordSerializer(filtered_records, many=True)
+        return Response(serializer.data)
+    
+class FilterMetadataView(APIView):
+    """
+    Returns metadata about the fields available for filtering.
+    """
+    def get(self, request, *args, **kwargs):
+        metadata = {
+            "fields": [
+                {"name": "age", "type": "integer", "operations": ["=", "__gte", "__lte"]},
+                {"name": "diagnosis", "type": "string", "operations": ["=", "__icontains"]},
+                {"name": "gender", "type": "string", "operations": ["="]},
+                {"name": "created_at", "type": "date", "operations": ["=", "__gte", "__lte"]},
+            ]
+        }
+        return Response(metadata)
+
+class DashboardFilterAnalysisView(APIView):
+    """
+    Performs aggregations on filtered data for dashboard insights.
+    """
+    def get(self, request, *args, **kwargs):
+        filters = request.query_params
+        queryset = PatientRecord.objects.all()
+
+        # Apply filters dynamically
+        dynamic_query = Q()
+        for field, value in filters.items():
+            if "__" in field:
+                dynamic_query &= Q(**{field: value})
+            else:
+                dynamic_query &= Q(**{f"{field}": value})
+        filtered_records = queryset.filter(dynamic_query)
+
+        # Perform aggregations
+        total_patients = filtered_records.count()
+        age_avg = filtered_records.aggregate(average_age=Avg('age'))['average_age']
+        gender_distribution = filtered_records.values('gender').annotate(count=Count('gender'))
+
+        return Response({
+            "total_patients": total_patients,
+            "average_age": age_avg,
+            "gender_distribution": list(gender_distribution)
+        })
